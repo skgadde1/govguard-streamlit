@@ -33,6 +33,53 @@ applicant = {
     "Program": "SNAP"
 }
 
+# =============================
+# 📤 CSV Upload and Bulk Scoring
+# =============================
+st.subheader("📥 Upload Applicant Dataset for Scoring")
+
+uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
+if uploaded_file:
+    uploaded_df = pd.read_csv(uploaded_file)
+    uploaded_df.fillna('', inplace=True)
+
+    # Apply the same rule logic to each row
+    def score_row(row, rules):
+        score = 0
+        triggered = []
+        for rule in rules:
+            if not rule["Enabled"]:
+                continue
+            if "Duplicate SSN" in rule["Description"] and row["SSN"] == "123-45-6789":
+                score += rule["Score_Weight"]
+                triggered.append(rule["Description"])
+            if "High income" in rule["Description"] and float(row["Monthly_Income"]) > 50000:
+                score += rule["Score_Weight"]
+                triggered.append(rule["Description"])
+            if "Underage" in rule["Description"] and int(row["Age"]) < 18:
+                score += rule["Score_Weight"]
+                triggered.append(rule["Description"])
+            if "Program mismatch" in rule["Description"] and row["Program"] == "SNAP" and float(row["Monthly_Income"]) > 2500:
+                score += rule["Score_Weight"]
+                triggered.append(rule["Description"])
+        return pd.Series([score, ', '.join(triggered)])
+
+    uploaded_df[['Risk_Score', 'Triggered_Rules']] = uploaded_df.apply(score_row, axis=1, rules=rules)
+
+    # Assign risk level
+    def risk_level(score):
+        if score >= 9:
+            return "High"
+        elif score >= 5:
+            return "Medium"
+        else:
+            return "Low"
+
+    uploaded_df['Risk_Level'] = uploaded_df['Risk_Score'].apply(risk_level)
+
+    st.success("✅ Scoring complete!")
+    st.dataframe(uploaded_df[['Applicant_ID', 'Name', 'Risk_Level', 'Risk_Score', 'Triggered_Rules']])
+
 st.json(applicant)
 
 # Score calculation
